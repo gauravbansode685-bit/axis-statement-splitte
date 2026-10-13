@@ -1,0 +1,399 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0}[hidden]{display:none!important}img{max-width:100%}</style><title>Axis Statement Splitter</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one working column — drop zone on top, then one ledger panel per output file (7036, 6055). */
+:root {
+  --bg: #f3f6f5;
+  --surface: #ffffff;
+  --ink: #142320;
+  --muted: #5b6d69;
+  --line: #d6e0dd;
+  --accent: #0f6b5c;
+  --accent-ink: #ffffff;
+  --accent-soft: #e1efeb;
+  --warn: #9a5b00;
+  --warn-soft: #fbefd9;
+  --bad: #a3322a;
+  --bad-soft: #f8e3e0;
+  --font-ui: "Libre Franklin", "Segoe UI", system-ui, sans-serif;
+  --font-num: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1716; --surface: #16211f; --ink: #e3ece9; --muted: #93a6a1; --line: #2a3a37;
+    --accent: #4fc2aa; --accent-ink: #062520; --accent-soft: #183731;
+    --warn: #e8b05a; --warn-soft: #3a2d15; --bad: #f08a80; --bad-soft: #3d1e1b;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1716; --surface: #16211f; --ink: #e3ece9; --muted: #93a6a1; --line: #2a3a37;
+  --accent: #4fc2aa; --accent-ink: #062520; --accent-soft: #183731;
+  --warn: #e8b05a; --warn-soft: #3a2d15; --bad: #f08a80; --bad-soft: #3d1e1b;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-ui); font-size: 15px; line-height: 1.5; }
+.wrap { max-width: 1080px; margin: 0 auto; padding: 32px 20px 64px; display: grid; gap: 24px; }
+header { display: grid; gap: 6px; }
+.eyebrow { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+h1 { margin: 0; font-size: 28px; font-weight: 700; text-wrap: balance; }
+header p { margin: 0; color: var(--muted); max-width: 65ch; }
+
+.drop { border: 1.5px dashed var(--line); border-radius: 10px; background: var(--surface); padding: 22px; display: flex; flex-wrap: wrap; gap: 16px; align-items: center; justify-content: space-between; transition: border-color .15s, background .15s; }
+.drop.over { border-color: var(--accent); background: var(--accent-soft); }
+.drop-text { display: grid; gap: 2px; min-width: 0; }
+.drop-text strong { font-size: 16px; overflow-wrap: anywhere; }
+.drop-text span { color: var(--muted); font-size: 13px; }
+.btn { font: inherit; font-weight: 600; font-size: 14px; border-radius: 7px; padding: 9px 16px; cursor: pointer; border: 1px solid var(--accent); background: var(--accent); color: var(--accent-ink); display: inline-flex; align-items: center; gap: 8px; }
+.btn.ghost { background: transparent; color: var(--accent); }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.btn:focus-visible, .drop:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+input[type=file] { position: absolute; width: 1px; height: 1px; opacity: 0; }
+
+.msg { border-radius: 8px; padding: 10px 14px; font-size: 14px; }
+.msg.warn { background: var(--warn-soft); color: var(--warn); }
+.msg.bad { background: var(--bad-soft); color: var(--bad); }
+
+.panels { display: grid; gap: 24px; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; min-width: 0; }
+.panel-head { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-start; justify-content: space-between; padding: 18px 20px 14px; border-bottom: 1px solid var(--line); }
+.acct { display: grid; gap: 4px; min-width: 0; }
+.acct h2 { margin: 0; font-size: 18px; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.acct-no { font-family: var(--font-num); font-weight: 500; font-size: 15px; color: var(--accent); background: var(--accent-soft); padding: 1px 8px; border-radius: 5px; }
+.acct p { margin: 0; color: var(--muted); font-size: 13px; }
+.file-name { font-family: var(--font-num); font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.stats { display: flex; flex-wrap: wrap; gap: 8px 18px; padding: 12px 20px; border-bottom: 1px solid var(--line); font-size: 13px; color: var(--muted); }
+.stats b { color: var(--ink); font-family: var(--font-num); font-weight: 500; font-variant-numeric: tabular-nums; }
+.pill { display: inline-block; font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; padding: 2px 8px; border-radius: 99px; background: var(--warn-soft); color: var(--warn); }
+.table-scroll { overflow-x: auto; max-height: 420px; overflow-y: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { padding: 7px 12px; text-align: left; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { position: sticky; top: 0; background: var(--surface); font-weight: 600; font-size: 12px; color: var(--muted); z-index: 1; }
+td.num, th.num { text-align: right; font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+td.mono { font-family: var(--font-num); font-size: 12px; }
+td.part { max-width: 360px; overflow: hidden; text-overflow: ellipsis; }
+tfoot td { font-weight: 600; border-bottom: none; }
+.empty { padding: 18px 20px; color: var(--muted); font-size: 14px; }
+.skipped { padding: 12px 20px 16px; font-size: 13px; color: var(--muted); display: grid; gap: 4px; border-top: 1px solid var(--line); }
+.skipped ul { margin: 0; padding-left: 18px; }
+.save-note { font-size: 12px; color: var(--muted); min-height: 1em; }
+.save-note.bad { color: var(--bad); }
+footer { color: var(--muted); font-size: 13px; max-width: 70ch; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style></head><body>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Husk Power · Axis Bank receipts</div>
+    <h1>Axis Statement Splitter</h1>
+    <p>Add the monthly Bank Transaction Status workbook. The tool reads the <b>7036</b> and <b>6055</b> sheets and builds two import files: all credits from 7036, and the 6055 credits marked “Awaiting HMG Collection Report”.</p>
+  </header>
+
+  <label class="drop" id="drop" for="file">
+    <div class="drop-text">
+      <strong id="file-label">Drop the bank status workbook here</strong>
+      <span id="file-sub">.xlsm or .xlsx, for example Bank_Transaction_Status_October_2026.xlsm. The file stays on this computer.</span>
+    </div>
+    <span class="btn">Choose file</span>
+    <input type="file" id="file" accept=".xlsm,.xlsx,.xls">
+  </label>
+
+  <div id="messages"></div>
+
+  <div class="panels">
+    <section class="panel" id="p7036"></section>
+    <section class="panel" id="p6055"></section>
+  </div>
+
+  <footer>Dates are read as dd/mm/yyyy and written as real Excel dates, so they don't flip day and month. For cheque (CLG) rows the UTR column is filled as “Cheque no- …”, and for NEFT, RTGS, IMPS and UPI rows with the reference from Particulars. Customer, project, address and plant columns are left blank to fill from the collection report.</footer>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+<script>
+const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+const HMG_REMARK = /await\w*\s+hmg\s+collection\s+report/i;
+
+// Output layouts, copied from the existing team files.
+const LAYOUT_7036 = {
+  headerRow: 3,
+  headers: ["Date ", "Particulars", "Amount ", "", "B. Nature ", "Remarks ", "Project Name ", "Amount ", "UTR N.", "Transaction Source", "Address", "City", "State", "Pin Code", "Remarks ", "Tally"],
+  widths: [12.3, 65.3, 12, 6, 13, 13, 22.1, 12, 20.9, 17, 18.1, 12.6, 9, 10, 13, 14.9],
+  row: r => [r.date, r.particulars, r.amount, "CR", null, null, null, null, r.ref, null, null, null, null, null, null, null],
+  numCols: [3, 8],
+};
+const LAYOUT_6055 = {
+  headerRow: 2,
+  headers: ["Date", "Particulars", "Amount", "DR/CR", "Customer", "CRN", "Plant", "Status"],
+  widths: [13.1, 69.9, 12, 8, 23.9, 10, 12.1, 12],
+  row: r => [r.date, r.particulars, r.amount, "CR", null, null, null, null],
+  numCols: [3],
+};
+
+const norm = v => String(v ?? "").replace(/\s+/g, " ").trim();
+const key = v => norm(v).toLowerCase();
+
+function toNumber(v) {
+  if (typeof v === "number") return v;
+  const n = parseFloat(String(v ?? "").replace(/[,\s₹]/g, ""));
+  return Number.isFinite(n) ? n : null;
+}
+
+// Returns {y, m, d} or null. Text dates are dd/mm/yyyy (Indian bank format); numbers are Excel serials.
+function toYMD(v) {
+  if (v == null || v === "") return null;
+  if (typeof v === "number") {
+    const p = XLSX.SSF.parse_date_code(v);
+    return p ? { y: p.y, m: p.m, d: p.d } : null;
+  }
+  const s = norm(v);
+  let m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/);
+  if (m) {
+    let y = +m[3]; if (y < 100) y += 2000;
+    return { y, m: +m[2], d: +m[1] };
+  }
+  m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (m) return { y: +m[1], m: +m[2], d: +m[3] };
+  return null;
+}
+const ymdText = p => p ? `${String(p.d).padStart(2, "0")}/${String(p.m).padStart(2, "0")}/${p.y}` : "";
+
+// Reference for the UTR column, taken from the bank narration.
+function refFrom(particulars, cheque) {
+  const parts = norm(particulars).split("/").map(s => s.trim());
+  const head = (parts[0] || "").toUpperCase();
+  if (head === "CLG") {
+    const no = norm(cheque) || parts[1] || "";
+    return no ? `Cheque no- ${no}` : null;
+  }
+  if (["NEFT", "RTGS", "IMPS"].includes(head)) return parts[1] && parts[1] !== "P2A" ? parts[1] : (parts[2] || null);
+  if (head === "UPI") return parts[2] || null;
+  return null;
+}
+
+function findAccountSheet(wb, acct) {
+  const byName = wb.SheetNames.find(n => norm(n) === acct);
+  if (byName) return byName;
+  return wb.SheetNames.find(n => {
+    const ws = wb.Sheets[n];
+    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, blankrows: false, range: 0 }).slice(0, 25);
+    return rows.some(r => r.some(c => /statement of account no/i.test(String(c ?? "")) && norm(c).endsWith(acct)));
+  }) || null;
+}
+
+function readStatement(wb, acct) {
+  const sheetName = findAccountSheet(wb, acct);
+  if (!sheetName) throw new Error(`No sheet for account ${acct}. Expected a sheet named "${acct}".`);
+  const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { header: 1, raw: true, defval: null, blankrows: true });
+  const hIdx = rows.findIndex((r, i) => i < 60 && r.some(c => key(c) === "dr/cr"));
+  if (hIdx < 0) throw new Error(`Sheet "${sheetName}" has no header row with a DR/CR column.`);
+  const h = rows[hIdx].map(key);
+  const col = (...names) => h.findIndex(x => names.some(n => x === n || x.startsWith(n)));
+  const c = {
+    tdate: col("transaction date"), vdate: col("value date"), part: col("particulars"),
+    amount: h.findIndex(x => x === "amount" || x.startsWith("amount(") || x.startsWith("amount (")),
+    drcr: col("dr/cr"), remarks: col("remarks"), cheque: col("cheque number", "cheque no"), status: col("status"),
+  };
+  for (const [k, label] of [["part", "Particulars"], ["amount", "Amount"], ["drcr", "DR/CR"]])
+    if (c[k] < 0) throw new Error(`Sheet "${sheetName}" has no ${label} column.`);
+  const out = [];
+  for (let i = hIdx + 1; i < rows.length; i++) {
+    const r = rows[i];
+    if (!r || !norm(r[c.part])) continue;
+    const ymd = toYMD(c.tdate >= 0 ? r[c.tdate] : null) || toYMD(c.vdate >= 0 ? r[c.vdate] : null);
+    out.push({
+      excelRow: i + 1,
+      ymd,
+      date: ymd ? new Date(Date.UTC(ymd.y, ymd.m - 1, ymd.d)) : null,
+      particulars: norm(r[c.part]),
+      amount: toNumber(r[c.amount]),
+      drcr: key(r[c.drcr]).toUpperCase(),
+      remarks: c.remarks >= 0 ? norm(r[c.remarks]) : "",
+      cheque: c.cheque >= 0 ? norm(r[c.cheque]) : "",
+      status: c.status >= 0 ? norm(r[c.status]) : "",
+    });
+  }
+  out.forEach(t => { t.ref = refFrom(t.particulars, t.cheque); });
+  return { sheetName, rows: out };
+}
+
+function monthLabel(rows) {
+  const counts = {};
+  rows.forEach(r => { if (r.ymd) { const k = `${r.ymd.y}-${r.ymd.m}`; counts[k] = (counts[k] || 0) + 1; } });
+  const best = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+  if (!best) return null;
+  const [y, m] = best[0].split("-").map(Number);
+  return { month: MONTHS[m - 1], year: y };
+}
+
+// Pure step: workbook in, two result sets out. Exposed for testing.
+function processWorkbook(wb) {
+  const result = { errors: [] };
+  try {
+    const s = readStatement(wb, "7036");
+    const credits = s.rows.filter(r => r.drcr === "CR");
+    result.a7036 = { sheet: s.sheetName, total: s.rows.length, rows: credits, period: monthLabel(s.rows), missingDate: credits.filter(r => !r.date).length };
+  } catch (e) { result.errors.push(e.message); }
+  try {
+    const s = readStatement(wb, "6055");
+    const credits = s.rows.filter(r => r.drcr === "CR");
+    const picked = credits.filter(r => HMG_REMARK.test(r.remarks));
+    const skipped = {};
+    credits.filter(r => !HMG_REMARK.test(r.remarks)).forEach(r => { const k = r.remarks || "(no remark)"; skipped[k] = (skipped[k] || 0) + 1; });
+    result.a6055 = { sheet: s.sheetName, total: s.rows.length, credits: credits.length, rows: picked, skipped, period: monthLabel(s.rows), missingDate: picked.filter(r => !r.date).length };
+  } catch (e) { result.errors.push(e.message); }
+  return result;
+}
+window.processWorkbook = processWorkbook;
+
+async function buildXlsx(layout, rows, sheetName) {
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet(sheetName);
+  ws.columns = [{ width: 3 }, ...layout.widths.map(w => ({ width: w }))];
+  const hr = ws.getRow(layout.headerRow);
+  layout.headers.forEach((t, i) => { const cell = hr.getCell(i + 2); if (t) cell.value = t; cell.font = { bold: true }; });
+  rows.forEach((r, i) => {
+    const xr = ws.getRow(layout.headerRow + 1 + i);
+    layout.row(r).forEach((v, j) => { if (v != null) xr.getCell(j + 2).value = v; });
+    xr.getCell(2).numFmt = "dd/mm/yyyy";
+    layout.numCols.forEach(n => { xr.getCell(n + 1).numFmt = "#,##0.00"; });
+  });
+  ws.views = [{ state: "frozen", ySplit: layout.headerRow }];
+  return wb.xlsx.writeBuffer();
+}
+
+// ---------- UI ----------
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]));
+const money = n => n == null ? "" : n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const sum = rows => rows.reduce((a, r) => a + (r.amount || 0), 0);
+
+let downloads = null;
+let current = null;
+
+const EXAMPLE = {
+  example: true,
+  a7036: { sheet: "7036", total: 12, period: { month: "October", year: 2026 }, missingDate: 0, rows: [
+    { ymd: { y: 2026, m: 10, d: 2 }, particulars: "NEFT/SBIN000000000001/EXAMPLE PAYER/STATE BANK", amount: 25000, ref: "SBIN000000000001" },
+    { ymd: { y: 2026, m: 10, d: 3 }, particulars: "CLG/100001/011026/Example Bank/", amount: 10000, ref: "Cheque no- 100001" },
+  ]},
+  a6055: { sheet: "6055", total: 40, credits: 6, period: { month: "October", year: 2026 }, missingDate: 0, skipped: { "Posted": 5 }, rows: [
+    { ymd: { y: 2026, m: 10, d: 4 }, particulars: "UPI/P2A/000000000001/EXAMPLE/SBIN/Payment", amount: 1500, ref: "000000000001" },
+  ]},
+  errors: [],
+};
+
+function fileNameFor(acct, period) {
+  const p = period ? ` - ${period.month} ${period.year}` : "";
+  return acct === "7036" ? `Axis Bank AC 7036${p}.xlsx` : `Neuron (HMG) sheet for Axis Bank-6055${p}.xlsx`;
+}
+
+function tableHTML(rows, withRef) {
+  if (!rows.length) return "";
+  const body = rows.map(r => `<tr><td class="mono">${ymdText(r.ymd)}</td><td class="part" title="${esc(r.particulars)}">${esc(r.particulars)}</td><td class="num">${money(r.amount)}</td>${withRef ? `<td class="mono">${esc(r.ref || "")}</td>` : ""}</tr>`).join("");
+  return `<div class="table-scroll"><table>
+    <thead><tr><th>Date</th><th>Particulars</th><th class="num">Amount</th>${withRef ? "<th>UTR N.</th>" : ""}</tr></thead>
+    <tbody>${body}</tbody>
+    <tfoot><tr><td></td><td>Total</td><td class="num">${money(sum(rows))}</td>${withRef ? "<td></td>" : ""}</tr></tfoot>
+  </table></div>`;
+}
+
+function renderPanel(acct, data, isExample) {
+  const el = $("p" + acct);
+  const title = acct === "7036" ? "All credits" : "Credits awaiting HMG collection report";
+  const desc = acct === "7036"
+    ? "Every CR line from the 7036 statement, in the Axis Bank AC 7036 layout."
+    : "CR lines whose Remarks column says “Awaiting HMG Collection Report”, in the Neuron (HMG) 6055 layout.";
+  if (!data) {
+    el.innerHTML = `<div class="panel-head"><div class="acct"><h2><span class="acct-no">${acct}</span>${title}</h2><p>${desc}</p></div></div><div class="empty">This account could not be read from the workbook. See the message above.</div>`;
+    return;
+  }
+  const fname = fileNameFor(acct, data.period);
+  const stats = acct === "7036"
+    ? `<span>Statement lines <b>${data.total}</b></span><span>Credits <b>${data.rows.length}</b></span><span>Total credited <b>₹${money(sum(data.rows))}</b></span>`
+    : `<span>Statement lines <b>${data.total}</b></span><span>Credits <b>${data.credits}</b></span><span>Awaiting HMG report <b>${data.rows.length}</b></span><span>Amount <b>₹${money(sum(data.rows))}</b></span>`;
+  const skipped = acct === "6055" && Object.keys(data.skipped || {}).length
+    ? `<div class="skipped">Credits left out, by remark:<ul>${Object.entries(data.skipped).sort((a, b) => b[1] - a[1]).map(([k, n]) => `<li>${esc(k)}: ${n}</li>`).join("")}</ul></div>` : "";
+  const empty = data.rows.length ? "" : `<div class="empty">${acct === "7036" ? "No credit lines found in the 7036 sheet." : "No credit lines have the remark “Awaiting HMG Collection Report”. You can still download the empty file with headers."}</div>`;
+  const warn = data.missingDate ? `<div class="msg warn" style="margin:12px 20px 0">${data.missingDate} row(s) had a date that couldn't be read. Their Date cell is left blank.</div>` : "";
+  el.innerHTML = `
+    <div class="panel-head">
+      <div class="acct">
+        <h2><span class="acct-no">${acct}</span>${title} ${isExample ? '<span class="pill">Example</span>' : ""}</h2>
+        <p>${desc}</p>
+        <div class="file-name">${esc(fname)}</div>
+      </div>
+      <div style="display:grid;gap:4px;justify-items:end">
+        <button class="btn" id="dl${acct}" ${isExample ? "disabled" : ""}>Download .xlsx</button>
+        <div class="save-note" id="note${acct}"></div>
+      </div>
+    </div>
+    <div class="stats">${stats}</div>
+    ${warn}
+    ${empty}
+    ${tableHTML(data.rows, acct === "7036")}
+    ${skipped}`;
+  if (!isExample) $("dl" + acct).addEventListener("click", () => saveFile(acct));
+}
+
+function render(res) {
+  const msgs = res.errors.map(e => `<div class="msg bad">${esc(e)}</div>`).join("");
+  $("messages").innerHTML = msgs;
+  $("messages").hidden = !msgs;
+  renderPanel("7036", res.a7036, res.example);
+  renderPanel("6055", res.a6055, res.example);
+}
+
+async function saveFile(acct) {
+  const data = current["a" + acct];
+  const note = $("note" + acct);
+  const btn = $("dl" + acct);
+  note.className = "save-note"; note.textContent = "Building file…"; btn.disabled = true;
+  try {
+    const layout = acct === "7036" ? LAYOUT_7036 : LAYOUT_6055;
+    const rows = data.rows.map(r => ({ ...r, date: r.ymd ? new Date(Date.UTC(r.ymd.y, r.ymd.m - 1, r.ymd.d)) : null }));
+    const buf = await buildXlsx(layout, rows, data.period ? data.period.month : "Sheet1");
+    const filename = fileNameFor(acct, data.period);
+    const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    if (downloads) {
+      await downloads.save({ filename, data: blob });
+      note.textContent = "Saved.";
+    } else {
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob); a.download = filename; document.body.appendChild(a); a.click();
+      setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+      note.textContent = "Download started.";
+    }
+  } catch (e) {
+    note.className = "save-note bad";
+    note.textContent = e && e.code === "declined" ? "Save cancelled." : `Couldn't save: ${e && e.message ? e.message : e}`;
+  } finally { btn.disabled = false; }
+}
+
+async function handleFile(file) {
+  if (!file) return;
+  $("file-label").textContent = file.name;
+  $("file-sub").textContent = "Reading…";
+  try {
+    const wb = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: false });
+    current = processWorkbook(wb);
+    render(current);
+    $("file-sub").textContent = `${(file.size / 1024).toFixed(0)} KB · sheets used: ${[current.a7036?.sheet, current.a6055?.sheet].filter(Boolean).join(", ") || "none"}. Choose another file to replace it.`;
+  } catch (e) {
+    $("file-sub").textContent = "Choose another file.";
+    $("messages").hidden = false;
+    $("messages").innerHTML = `<div class="msg bad">This file couldn't be opened as an Excel workbook (${esc(e.message)}). Check that it is the .xlsm or .xlsx status file and try again.</div>`;
+  }
+}
+
+$("file").addEventListener("change", e => handleFile(e.target.files[0]));
+const drop = $("drop");
+["dragenter", "dragover"].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.add("over"); }));
+["dragleave", "drop"].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.remove("over"); }));
+drop.addEventListener("drop", e => handleFile(e.dataTransfer.files[0]));
+
+render(EXAMPLE);
+if (window.claude && window.claude.use) window.claude.use("downloads").then(d => { downloads = d; }).catch(() => {});
+</script>
+</body></html>
